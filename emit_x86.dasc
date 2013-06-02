@@ -1,0 +1,78 @@
+// based largely on Joshua Haberman's jitdemo
+// https://github.com/haberman/jitdemo/blob/master/jit3.dasc
+
+|.arch x86
+|.actionlist actionlist
+|
+|.define PTR, ebx
+
+#define MAX_NESTING 256
+
+void emit(dasm_State **Dst, ins_t *code) {
+  size_t maxpc = 0;
+  int pcstack[MAX_NESTING];
+  int *top = pcstack;
+  int *limit = pcstack + MAX_NESTING;
+
+  // prologue
+  |  mov  eax, [esp+4]
+  |  push PTR
+  |  mov  PTR, eax
+
+  for (; code->op != OP_EOF; ++code) {
+    switch (code->op) {
+      case OP_ADD:
+        if (code->a == 1)
+          |  inc byte [PTR+code->b]
+        else if (code->a == -1)
+          |  dec byte [PTR+code->b]
+        else if (code->a <= INT8_MAX)
+          |  add byte [PTR+code->b], code->a
+        else if (code->a > 0)
+          |  sub byte [PTR+code->b], -code->a
+        break;
+      case OP_SHIFT:
+        if (code->b == 1)
+          |  inc PTR
+        else if (code->b == -1)
+          |  dec PTR
+        else if (code->b > 0)
+          |  add PTR, code->b
+        else if (code->b < 0)
+          |  sub PTR, -code->b
+        break;
+      case OP_PRINT:
+        |  movzx  eax, byte [PTR]
+        |  push   eax
+        |  call   &putchar
+        |  pop    eax
+        break;
+      case OP_READ:
+        |  call   &getchar
+        |  mov    byte [PTR], al
+        break;
+      case OP_SKIPZ:
+        if (top == limit) err("Nesting too deep.");
+        // Each loop gets two pclabels: at the beginning and end.
+        // We store pclabel offsets in a stack to link the loop
+        // begin and end together.
+        maxpc += 2;
+        *top++ = maxpc;
+        dasm_growpc(Dst, maxpc);
+        |  cmp  byte [PTR], 0
+        |  je   =>(maxpc-2)
+        |=>(maxpc-1):
+        break;
+      case OP_LOOPNZ:
+        top--;
+        |  cmp  byte [PTR], 0
+        |  jne  =>(*top-1)
+        |=>(*top-2):
+        break;
+    }
+  }
+
+  // epilogue
+  |  pop PTR
+  |  ret
+}
