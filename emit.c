@@ -10,6 +10,11 @@
 
 #include "beefit.h"
 
+void err(char *msg) {
+  fprintf(stderr, "%s\n", msg);
+  exit(1);
+}
+
 // generated from the .dasc file
 #include "emit_x86.gen.h"
 
@@ -46,5 +51,5 @@ bf_ptr assemble(ins_t *code, int *size_out) {
   #endif
 
   *size_out = size;
-  return mem;
+  return (bf_ptr)mem;
 }

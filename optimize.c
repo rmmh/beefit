@@ -76,6 +76,13 @@ int condense(ins_t *src) {
           shift_offset = 0;
         }
         *dst++ = *src;
+        break;
+      case OP_NOP:
+        // remove NOPs from instruction stream
+        break;
+      case OP_EOF:
+        assert("unreachable");
+        break;
     }
   }
   *dst = *src;

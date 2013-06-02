@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-enum {
+typedef enum {
   OP_NOP,
   OP_SHIFT,   // ptr += b
   OP_ADD,     // ptr[b] += a
@@ -11,10 +11,10 @@ enum {
   OP_PRINT,   // putchar(ptr[b])
   OP_READ,    // ptr[b] = getchar()
   OP_EOF      // end of instructions
-};
+} ins_op_t;
 
 typedef struct {
-  uint8_t op;
+  ins_op_t op;
   uint8_t a;
   int16_t b;
 } ins_t;

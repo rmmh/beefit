@@ -69,6 +69,8 @@ void emit(dasm_State **Dst, ins_t *code) {
         |  jne  =>(*top-1)
         |=>(*top-2):
         break;
+      case OP_NOP:
+        break;
     }
   }
 

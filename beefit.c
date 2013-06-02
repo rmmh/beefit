@@ -27,12 +27,12 @@ int main(int argc, char *argv[]) {
     switch (c) {
       case '+': ins = (ins_t){OP_ADD, 1, 0};    break;
       case '-': ins = (ins_t){OP_ADD, -1, 0};   break;
-      case '>': ins = (ins_t){OP_SHIFT, 0, 1};    break;
-      case '<': ins = (ins_t){OP_SHIFT, 0, -1};   break;
-      case '[': ins = (ins_t){OP_SKIPZ};      break;
-      case ']': ins = (ins_t){OP_LOOPNZ};     break;
-      case '.': ins = (ins_t){OP_PRINT};      break;
-      case ',': ins = (ins_t){OP_READ};     break;
+      case '>': ins = (ins_t){OP_SHIFT, 0, 1};  break;
+      case '<': ins = (ins_t){OP_SHIFT, 0, -1}; break;
+      case '[': ins = (ins_t){OP_SKIPZ, 0, 0};  break;
+      case ']': ins = (ins_t){OP_LOOPNZ, 0, 0}; break;
+      case '.': ins = (ins_t){OP_PRINT, 0, 0};  break;
+      case ',': ins = (ins_t){OP_READ, 0, 0};   break;
     }
     if (ins.op != OP_NOP) {
       code[count++] = ins;
@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
       }
     }
   }
-  code[count] = (ins_t){OP_EOF};
+  code[count] = (ins_t){OP_EOF, 0, 0};
 
   int opt_size = optimize(code);
 
@@ -59,6 +59,8 @@ int main(int argc, char *argv[]) {
   fptr(buf);
   free(buf);
   munmap(fptr, size);
+
+  return 0;
 }
 
 void print_code(ins_t *code, int count) {
@@ -84,6 +86,9 @@ void print_code(ins_t *code, int count) {
         break;
       case OP_READ:
         printf("%*s%d = read\n", indent, "", code->b);
+        break;
+      case OP_NOP:
+      case OP_EOF:
         break;
     }
     ++code;
