@@ -1,7 +1,7 @@
-CFLAGS=-m32 -O2
+CFLAGS=-m32 -O2 -g
 LDFLAGS=-m32
 
-beefit: beefit.o emit.o
+beefit: beefit.o emit.o optimize.o
 
 emit.o: emit.c emit_x86.gen.h
 

@@ -24,7 +24,7 @@ void emit(dasm_State **Dst, ins_t *code) {
       case OP_ADD:
         if (code->a == 1)
           |  inc byte [PTR+code->b]
-        else if (code->a == -1)
+        else if (code->a == (uint8_t)-1)
           |  dec byte [PTR+code->b]
         else if (code->a <= INT8_MAX)
           |  add byte [PTR+code->b], code->a
@@ -42,14 +42,14 @@ void emit(dasm_State **Dst, ins_t *code) {
           |  sub PTR, -code->b
         break;
       case OP_PRINT:
-        |  movzx  eax, byte [PTR]
+        |  movzx  eax, byte [PTR+code->b]
         |  push   eax
         |  call   &putchar
         |  pop    eax
         break;
       case OP_READ:
         |  call   &getchar
-        |  mov    byte [PTR], al
+        |  mov    byte [PTR+code->b], al
         break;
       case OP_SKIPZ:
         if (top == limit) err("Nesting too deep.");

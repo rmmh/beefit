@@ -44,13 +44,48 @@ int main(int argc, char *argv[]) {
   }
   code[count] = (ins_t){OP_EOF};
 
-  int size;
-  void (*fptr)(uint8_t*) = assemble(code, &size);
+  int opt_size = optimize(code);
 
-  printf("compiled %d instructions into %d bytes\n", count, size);
+#ifndef DEBUG
+  print_code(code, opt_size);
+#endif
+
+  int size;
+  bf_ptr fptr = assemble(code, &size);
+
+  printf("ins:%d opt:%d x86:%dB\n", count, opt_size, size);
 
   uint8_t *buf = calloc(30000, 1);
   fptr(buf);
   free(buf);
   munmap(fptr, size);
+}
+
+void print_code(ins_t *code, int count) {
+  int indent = 0;
+  while (count--) {
+    switch (code->op) {
+      case OP_SHIFT:
+        printf("%*s%s %d\n", indent, "", "shift", code->b);
+        break;
+      case OP_ADD:
+        printf("%*s%d += %d\n", indent, "", code->b, (int8_t)code->a);
+        break;
+      case OP_SKIPZ:
+        printf("%*s[\n", indent, "");
+        indent += 2;
+        break;
+      case OP_LOOPNZ:
+        indent -= 2;
+        printf("%*s]\n", indent, "");
+        break;
+      case OP_PRINT:
+        printf("%*sprint %d\n", indent, "", code->b);
+        break;
+      case OP_READ:
+        printf("%*s%d = read\n", indent, "", code->b);
+        break;
+    }
+    ++code;
+  }
 }
