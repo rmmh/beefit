@@ -5,6 +5,7 @@
 |.actionlist actionlist
 |
 |.define PTR, ebx
+|.define TMP, al
 
 #define MAX_NESTING 256
 
@@ -15,9 +16,8 @@ void emit(dasm_State **Dst, ins_t *code) {
   int *limit = pcstack + MAX_NESTING;
 
   // prologue
-  |  mov  eax, [esp+4]
   |  push PTR
-  |  mov  PTR, eax
+  |  mov  PTR, [esp+8]
 
   for (; code->op != OP_EOF; ++code) {
     switch (code->op) {
@@ -40,6 +40,26 @@ void emit(dasm_State **Dst, ins_t *code) {
           |  add PTR, code->b
         else if (code->b < 0)
           |  sub PTR, -code->b
+        break;
+      case OP_SET:
+        |  mov byte [PTR+code->b], code->a
+        break;
+      case OP_LOAD:
+        |  mov  TMP, byte [PTR+code->b]
+        break;
+      case OP_ADDT:
+        {
+          int8_t diff = (int8_t)code->a;
+          if (diff < 0) {
+            for (int i = 0; i > diff; i--) {
+              | sub  [PTR+code->b], TMP
+            }
+          } else if (diff > 0) {
+            for (int i = 0; i < diff; i++) {
+              | add  [PTR+code->b], TMP
+            }
+          }
+        }
         break;
       case OP_PRINT:
         |  movzx  eax, byte [PTR+code->b]
@@ -70,6 +90,7 @@ void emit(dasm_State **Dst, ins_t *code) {
         |=>(*top-2):
         break;
       case OP_NOP:
+      case OP_EOF:
         break;
     }
   }

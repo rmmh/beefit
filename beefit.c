@@ -71,7 +71,23 @@ void print_code(ins_t *code, int count) {
         printf("%*s%s %d\n", indent, "", "shift", code->b);
         break;
       case OP_ADD:
-        printf("%*s%d += %d\n", indent, "", code->b, (int8_t)code->a);
+        printf("%*s*%d += %d\n", indent, "", code->b, (int8_t)code->a);
+        break;
+      case OP_ADDT:
+        printf("%*s*%d ", indent, "", code->b);
+        if (code->a == 1) {
+          printf("+= tmp\n");
+        } else if (code->a == (uint8_t)-1) {
+          printf("-= tmp\n");
+        } else {
+          printf("+= tmp*%d\n", (int8_t)code->a);
+        }
+        break;
+      case OP_SET:
+        printf("%*s*%d = %d\n", indent, "", code->b, (int8_t)code->a);
+        break;
+      case OP_LOAD:
+        printf("%*stmp = *%d\n", indent, "", code->b);
         break;
       case OP_SKIPZ:
         printf("%*s[\n", indent, "");
@@ -82,10 +98,10 @@ void print_code(ins_t *code, int count) {
         printf("%*s]\n", indent, "");
         break;
       case OP_PRINT:
-        printf("%*sprint %d\n", indent, "", code->b);
+        printf("%*sprint *%d\n", indent, "", code->b);
         break;
       case OP_READ:
-        printf("%*s%d = read\n", indent, "", code->b);
+        printf("%*s*%d = read\n", indent, "", code->b);
         break;
       case OP_NOP:
       case OP_EOF:

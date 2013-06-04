@@ -1,11 +1,18 @@
 #pragma once
 
+// from http://stackoverflow.com/a/6766023/3694
+#define STATIC_ASSERT( condition, name )\
+    typedef char assert_failed_ ## name [ (condition) ? 1 : -1 ];
+
 #include <stdint.h>
 
 typedef enum {
   OP_NOP,
   OP_SHIFT,   // ptr += b
   OP_ADD,     // ptr[b] += a
+  OP_SET,     // ptr[b] = a
+  OP_LOAD,    // tmp = ptr[b]
+  OP_ADDT,    // ptr[b] += tmp
   OP_SKIPZ,   // while (ptr[0]) {
   OP_LOOPNZ,  // }
   OP_PRINT,   // putchar(ptr[b])
@@ -18,6 +25,8 @@ typedef struct {
   uint8_t a;
   int16_t b;
 } ins_t;
+
+STATIC_ASSERT(sizeof(ins_t) == sizeof(uint32_t), packed_opcodes);
 
 typedef void (*bf_ptr)(uint8_t*);
 

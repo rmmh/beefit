@@ -1,4 +1,4 @@
-CFLAGS=-m32 -O2 -g -Wall -Wextra -Wswitch-enum
+CFLAGS=-m32 -O2 -g -std=gnu99 -Wall -Wextra -Wswitch-enum -fshort-enums
 LDFLAGS=-m32
 
 beefit: beefit.o emit.o optimize.o
