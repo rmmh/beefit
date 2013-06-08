@@ -12,6 +12,7 @@ typedef enum {
   OP_ADD,     // ptr[b] += a
   OP_SET,     // ptr[b] = a
   OP_LOAD,    // tmp = ptr[b]
+  OP_TADD,    // tmp = tmp*a + ptr[b]
   OP_ADDT,    // ptr[b] += tmp
   OP_SKIPZ,   // while (ptr[0]) {
   OP_LOOPNZ,  // }

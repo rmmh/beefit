@@ -8,6 +8,7 @@ int fold(ins_t *code);
 int condense(ins_t *code);
 int unloop(ins_t *code);
 int dce(ins_t *code);
+int peep(ins_t *code);
 
 int optimize(ins_t *code) {
   int changed;
@@ -19,6 +20,8 @@ int optimize(ins_t *code) {
     changed |= condense(code);
     changed |= unloop(code);
     changed |= dce(code);
+    changed |= condense(code);
+    changed |= peep(code);
     changed |= condense(code);
   } while (changed);
 
@@ -68,6 +71,7 @@ int condense(ins_t *src) {
       case OP_SHIFT:
         shift_offset += src->b;
         break;
+      case OP_TADD:
       case OP_ADD:
       case OP_LOAD:
       case OP_ADDT:
@@ -89,6 +93,7 @@ int condense(ins_t *src) {
         // remove NOPs from instruction stream
         break;
       case OP_EOF:
+      default:
         assert("unreachable");
         break;
     }
@@ -167,5 +172,31 @@ int dce(ins_t *code) {
     }
   }
 
+  return changed;
+}
+
+int peep(ins_t *code) {
+  int changed = 0;
+  while (code[0].op != OP_EOF && code[1].op != OP_EOF && code[2].op != OP_EOF) {
+    // *A += tmp
+    // tmp = *A
+    // *A = B
+    //
+    // ->
+    //
+    // tmp += *A
+    // *A = B
+    //
+    // (also *A -= tmp)
+    if (code[0].op == OP_ADDT && code[1].op == OP_LOAD && code[2].op == OP_SET
+        && SAME(code, code+1, b) && SAME(code, code+2, b)
+        && (code[0].a == 1 || code[0].a == (uint8_t)-1)) {
+      code[0].op = OP_NOP;
+      code[1].op = OP_TADD;
+      code[1].a = code[0].a;
+      changed = 1;
+    }
+    ++code;
+  }
   return changed;
 }

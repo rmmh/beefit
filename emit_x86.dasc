@@ -53,6 +53,12 @@ void emit(dasm_State **Dst, ins_t *code) {
       case OP_LOAD:
         |  mov  TMP, byte [PTR+code->b]
         break;
+      case OP_TADD:
+        if (code->a == (uint8_t)-1) {
+          |  neg  TMP
+        }
+        |  add  TMP, byte [PTR+code->b]
+        break;
       case OP_ADDT:
         {
           int8_t diff = (int8_t)code->a;
