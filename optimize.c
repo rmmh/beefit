@@ -153,14 +153,14 @@ int unloop(ins_t *code) {
 }
 
 int dce(ins_t *code) {
-  // remove unnecessary `tmp = ptr[0]` code
-
+  // remove unnecessary `tmp = ptr[b]` code
   int changed = 0;
   ins_t *maybe_useless = 0;
 
   for (; code->op != OP_EOF; ++code) {
     if (maybe_useless) {
-      if (code->op == OP_ADDT || code->op == OP_SETT) {
+
+      if (code->op == OP_ADDT || code->op == OP_SETT || code->op == OP_TADD) {
         maybe_useless = 0;
       } else if (code->op == OP_LOAD) {
         maybe_useless->op = OP_NOP;

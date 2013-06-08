@@ -7,6 +7,9 @@
 #include <stdint.h>
 
 typedef enum {
+  // optimization passes to edit with new opcodes:
+  // -- dce: if the new op uses tmp
+
   OP_NOP,
   OP_SHIFT,   // ptr += b
   OP_ADD,     // ptr[b] += a
