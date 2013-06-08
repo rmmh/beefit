@@ -6,6 +6,7 @@
 |
 |.define PTR, ebx
 |.define TMP, al
+|.define ZERO, cl
 
 #define MAX_NESTING 256
 
@@ -18,6 +19,7 @@ void emit(dasm_State **Dst, ins_t *code) {
   // prologue
   |  push PTR
   |  mov  PTR, [esp+8]
+  |  mov  ZERO, 0
 
   for (; code->op != OP_EOF; ++code) {
     switch (code->op) {
@@ -42,7 +44,11 @@ void emit(dasm_State **Dst, ins_t *code) {
           |  sub PTR, -code->b
         break;
       case OP_SET:
-        |  mov byte [PTR+code->b], code->a
+        if (code->a == 0) {
+          |  mov byte [PTR+code->b], ZERO
+        } else {
+          |  mov byte [PTR+code->b], code->a
+        }
         break;
       case OP_LOAD:
         |  mov  TMP, byte [PTR+code->b]
@@ -65,10 +71,12 @@ void emit(dasm_State **Dst, ins_t *code) {
         |  movzx  eax, byte [PTR+code->b]
         |  push   eax
         |  call   &putchar
+        |  mov    ZERO, 0
         |  pop    eax
         break;
       case OP_READ:
         |  call   &getchar
+        |  mov    ZERO, 0
         |  mov    byte [PTR+code->b], al
         break;
       case OP_SKIPZ:
@@ -79,13 +87,13 @@ void emit(dasm_State **Dst, ins_t *code) {
         maxpc += 2;
         *top++ = maxpc;
         dasm_growpc(Dst, maxpc);
-        |  cmp  byte [PTR], 0
+        |  cmp  byte [PTR], ZERO
         |  je   =>(maxpc-2)
         |=>(maxpc-1):
         break;
       case OP_LOOPNZ:
         top--;
-        |  cmp  byte [PTR], 0
+        |  cmp  byte [PTR], ZERO
         |  jne  =>(*top-1)
         |=>(*top-2):
         break;
