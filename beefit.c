@@ -86,6 +86,9 @@ void print_code(ins_t *code, int count) {
       case OP_SET:
         printf("%*s*%d = %d\n", indent, "", code->b, (int8_t)code->a);
         break;
+      case OP_SETT:
+        printf("%*s*%d = tmp\n", indent, "", code->b);
+        break;
       case OP_TADD:
         if (code->a == -1)
           printf("%*stmp = *%d - tmp\n", indent, "", code->b);
