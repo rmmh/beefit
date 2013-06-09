@@ -6,6 +6,7 @@
 |
 |.define PTR, ebx
 |.define TMP, al
+|.define TMPE, eax
 |.define ZERO, cl
 
 #define MAX_NESTING 256
@@ -52,6 +53,17 @@ void emit(dasm_State **Dst, ins_t *code) {
         break;
       case OP_LOAD:
         |  mov  TMP, byte [PTR+code->b]
+        if (code->a) {
+          if (code->a == 1) {
+            |  inc TMPE
+          } else if (code->a == (uint8_t)-1) {
+            |  dec TMPE
+          } else if (code->a <= INT8_MAX) {
+            |  add TMP, code->a
+          } else if (code->a > 0) {
+            |  sub TMP, -code->a
+          }
+        }
         break;
       case OP_SETT:
         |  mov byte [PTR+code->b], TMP

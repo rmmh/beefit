@@ -28,8 +28,6 @@ int optimize(ins_t *code) {
   return opt_size;
 }
 
-#define SAME(X,Y,field) ((X)->field == (Y)->field)
-
 int fold(ins_t *code) {
   // combine runs of instructions together
   // e.g. >>>> => ptr += 4
@@ -38,13 +36,13 @@ int fold(ins_t *code) {
   while(code->op != OP_EOF) {
     ins_t *begin = code; // where the run started
     if (begin->op == OP_SHIFT) {
-      for (++code; SAME(begin, code, op); ++code) {
+      for (++code; begin->op == code->op; ++code) {
         begin->b += code->b;
         code->op = OP_NOP;
         changed = 1;
       }
     } else if (begin->op == OP_ADD || begin->op == OP_SET) {
-      for (++code; code->op == OP_ADD && SAME(begin, code, b); ++code) {
+      for (++code; code->op == OP_ADD && begin->b == code->b; ++code) {
         begin->a += code->a;
         code->op = OP_NOP;
         changed = 1;
@@ -177,7 +175,7 @@ int dce(ins_t *code) {
 ins_t* find_ref(ins_t *code, int dir) {
   int off = code->b;
   for (code += dir; code->op != OP_EOF; code += dir) {
-    if (code->op == OP_SKIPZ || code->op == OP_LOOPNZ) {
+    if (code->op == OP_SKIPZ || code->op == OP_LOOPNZ || code->op == OP_SHIFT) {
       return 0;
     } else if (code->op == OP_NOP) {
       ;
@@ -185,6 +183,7 @@ ins_t* find_ref(ins_t *code, int dir) {
       return code;
     }
   }
+  return 0;
 }
 
 int peep(ins_t *code) {
@@ -204,6 +203,17 @@ int peep(ins_t *code) {
         prev->op = OP_NOP;
         code->op = OP_TADD;
         code->a = prev->a;
+        changed = 1;
+      } else if (prev && prev->op == OP_ADD &&
+                 next && (next->op == OP_SET || next->op == OP_SETT)) {
+        // *A += C
+        // tmp = *A + D
+        // *A = B   /  *A = tmp
+        // ->
+        // tmp = *A + C + D
+        // *A = B   /  *A = tmp
+        prev->op = OP_NOP;
+        code->a += prev->a;
         changed = 1;
       }
     } else if (code->op == OP_SET) {

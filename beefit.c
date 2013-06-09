@@ -20,6 +20,8 @@ int main(int argc, char *argv[]) {
   int limit = 1 << 16;
   int count = 0;
   ins_t *code = malloc(limit * sizeof(ins_t));
+  code[0] = (ins_t){OP_EOF, 0, 0};
+  code++;
   char c;
   while ((c = getc(in)) != EOF) {
     ins_t ins;
@@ -58,6 +60,7 @@ int main(int argc, char *argv[]) {
   uint8_t *buf = calloc(30000, 1);
   fptr(buf);
   free(buf);
+  free(code - 1);
   munmap(fptr, size);
 
   return 0;
@@ -96,7 +99,11 @@ void print_code(ins_t *code, int count) {
           printf("%*stmp += *%d\n", indent, "", code->b);
         break;
       case OP_LOAD:
-        printf("%*stmp = *%d\n", indent, "", code->b);
+        if (code->a) {
+          printf("%*stmp = *%d + %d\n", indent, "", code->b, (int8_t)code->a);
+        } else {
+          printf("%*stmp = *%d\n", indent, "", code->b);
+        }
         break;
       case OP_SKIPZ:
         printf("%*s[\n", indent, "");
