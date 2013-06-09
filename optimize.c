@@ -20,9 +20,7 @@ int optimize(ins_t *code) {
     changed |= condense(code);
     changed |= unloop(code);
     changed |= dce(code);
-    changed |= condense(code);
     changed |= peep(code);
-    changed |= condense(code);
   } while (changed);
 
   int opt_size;
@@ -176,67 +174,59 @@ int dce(ins_t *code) {
   return changed;
 }
 
+ins_t* find_ref(ins_t *code, int dir) {
+  int off = code->b;
+  for (code += dir; code->op != OP_EOF; code += dir) {
+    if (code->op == OP_SKIPZ || code->op == OP_LOOPNZ) {
+      return 0;
+    } else if (code->op == OP_NOP) {
+      ;
+    } else if (code->b == off) {
+      return code;
+    }
+  }
+}
+
 int peep(ins_t *code) {
   int changed = 0;
-  while (code[0].op != OP_EOF && code[1].op != OP_EOF && code[2].op != OP_EOF) {
-    // *A += tmp
-    // tmp = *A
-    // *A = B
-    //
-    // ->
-    //
-    // tmp += *A
-    // *A = B
-    //
-    // (also *A -= tmp)
-    if (code[0].op == OP_ADDT && code[1].op == OP_LOAD && code[2].op == OP_SET
-        && SAME(code, code+1, b) && SAME(code, code+2, b)
-        && (code[0].a == 1 || code[0].a == (uint8_t)-1)) {
-      code[0].op = OP_NOP;
-      code[1].op = OP_TADD;
-      code[1].a = code[0].a;
-      changed = 1;
-    }
-
-    // *A = B
-    // ...
-    // *A += C
-    //
-    // ->
-    //
-    // *A = B + C
-    if (code->op == OP_SET) {
-      for (ins_t *next = code + 1; next->op != OP_EOF; ++next) {
-        if (next->op == OP_ADD) {
-          if (SAME(code, next, b)) {
-            changed = 1;
-            code->op = OP_NOP;
-            next->op = OP_SET;
-            next->a += code->a;
-            break;
-          }
-        } else if (next->op == OP_ADDT) {
-          if (SAME(code, next, b)) {
-            if (code->a != 0 || next->a != 1) {
-              // we can't fold *A = int + tmp
-              //            or *A = tmp * n
-              //        into a single ins
-              break;
-            }
-            changed = 1;
-            code->op = OP_NOP;
-            next->op = OP_SETT;
-            break;
-          }
-        } else if ((next->op == OP_LOAD && !SAME(code, next, b)) ||
-                   (next->op == OP_SET && !SAME(code, next, b))) {
-          // a non-interfering load/set we should skip
-        } else {
-          break;
-        }
+  while (code->op != OP_EOF) {
+    if (code->op == OP_LOAD) {
+      ins_t *prev = find_ref(code, -1);
+      ins_t *next = find_ref(code, 1);
+      if (prev && prev->op == OP_ADDT && (prev->a == 1 || prev->a == (uint8_t)-1)
+          && next && next->op == OP_SET) {
+        // *A += tmp  /  *A -= tmp
+        // tmp = *A
+        // *A = B
+        // ->
+        // tmp += *A
+        // *A = B
+        prev->op = OP_NOP;
+        code->op = OP_TADD;
+        code->a = prev->a;
+        changed = 1;
+      }
+    } else if (code->op == OP_SET) {
+      ins_t *next = find_ref(code, 1);
+      if (next && next->op == OP_ADD) {
+        // *A = B
+        // *A += C
+        // ->
+        // *A = B + C
+        changed = 1;
+        code->a += next->a;
+        next->op = OP_NOP;
+      } else if (next && next->op == OP_ADDT &&
+                 code->a == 0 && next->a == 1) {
+        // *A = 0
+        // *A += tmp
+        // ->
+        // *A = tmp
+        changed = 1;
+        code->op = OP_NOP;
+        next->op = OP_SETT;
       }
     }
-
     ++code;
   }
   return changed;
