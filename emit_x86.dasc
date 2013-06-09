@@ -114,8 +114,10 @@ void emit(dasm_State **Dst, ins_t *code) {
         break;
       case OP_LOOPNZ:
         top--;
-        |  cmp  byte [PTR], ZERO
-        |  jne  =>(*top-1)
+        if (code[-1].op != OP_LOOPNZ) {
+          |  cmp  byte [PTR], ZERO
+          |  jne  =>(*top-1)
+        }
         |=>(*top-2):
         break;
       case OP_NOP:
