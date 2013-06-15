@@ -2,15 +2,35 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <sys/mman.h>
+#include <string.h>
 
 #include "beefit.h"
 
 
+void usage(char *name) {
+  printf("usage: %s [-d] [filename]\n", name);
+  exit(1);
+}
+
 int main(int argc, char *argv[]) {
   FILE *in = stdin;
 
-  if (argc == 2) {
-    in = fopen(argv[1], "r");
+  if (argc > 3) {
+    usage(argv[0]);
+  }
+
+  debug = 0;
+
+  if (argc >= 2) {
+    if (!strcmp(argv[1], "-d")) {
+      debug = 1;
+    } else if (!strcmp(argv[1], "-h")) {
+      usage(argv[0]);
+    }
+  }
+
+  if (argc - debug == 2) {
+    in = fopen(argv[1 + debug], "r");
     if (!in) {
       perror("unable to open file");
       return 1;
@@ -19,6 +39,7 @@ int main(int argc, char *argv[]) {
 
   int limit = 1 << 16;
   int count = 0;
+  int loop_depth = 0;
   ins_t *code = malloc(limit * sizeof(ins_t));
   code[0] = (ins_t){OP_EOF, 0, 0};
   code++;
@@ -31,8 +52,15 @@ int main(int argc, char *argv[]) {
       case '-': ins = (ins_t){OP_ADD, -1, 0};   break;
       case '>': ins = (ins_t){OP_SHIFT, 0, 1};  break;
       case '<': ins = (ins_t){OP_SHIFT, 0, -1}; break;
-      case '[': ins = (ins_t){OP_SKIPZ, 0, 0};  break;
-      case ']': ins = (ins_t){OP_LOOPNZ, 0, 0}; break;
+      case '[': ins = (ins_t){OP_SKIPZ, 0, 0};
+        loop_depth++;
+        break;
+      case ']': ins = (ins_t){OP_LOOPNZ, 0, 0};
+        if (--loop_depth < 0) {
+          fprintf(stderr, "error: unmatched ]\n");
+          exit(1);
+        }
+        break;
       case '.': ins = (ins_t){OP_PRINT, 0, 0};  break;
       case ',': ins = (ins_t){OP_READ, 0, 0};   break;
     }
@@ -48,17 +76,20 @@ int main(int argc, char *argv[]) {
 
   int opt_size = optimize(code);
 
-#ifndef DEBUG
-  print_code(code, opt_size);
-#endif
+  if (debug) {
+    print_code(code, opt_size);
+  }
 
   int size;
   bf_ptr fptr = assemble(code, &size);
 
-  printf("ins:%d opt:%d x86:%dB\n", count, opt_size, size);
+  if (debug) {
+    printf("ins:%d opt:%d x86:%dB\n", count, opt_size, size);
+  }
 
-  uint8_t *buf = calloc(30000, 1);
-  fptr(buf);
+  // TODO: calculate padding precisely
+  uint8_t *buf = calloc(32000, 1);
+  fptr(buf + 1000);
   free(buf);
   free(code - 1);
   munmap(fptr, size);

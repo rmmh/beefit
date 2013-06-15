@@ -39,16 +39,16 @@ bf_ptr assemble(ins_t *code, int *size_out) {
   int success = mprotect(mem, size, PROT_EXEC | PROT_READ);
   assert(success == 0);
 
-  #ifndef NDEBUG
-  // Write generated machine code to a temporary file.
-  // View with:
-  //  objdump -D -b binary -mi386 /tmp/jitcode
-  // Or:
-  //  ndisasm -b 64 /tmp/jitcode
-  FILE *f = fopen("/tmp/jitcode", "wb");
-  fwrite(mem, size, 1, f);
-  fclose(f);
-  #endif
+  if (debug) {
+    // Write generated machine code to a temporary file.
+    // View with:
+    //  objdump -D -b binary -mi386 /tmp/jitcode
+    // Or:
+    //  ndisasm -b 64 /tmp/jitcode
+    FILE *f = fopen("/tmp/jitcode", "wb");
+    fwrite(mem, size, 1, f);
+    fclose(f);
+  }
 
   *size_out = size;
   return (bf_ptr)mem;

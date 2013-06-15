@@ -39,3 +39,5 @@ int optimize(ins_t *code);
 void print_code(ins_t *code, int count);
 
 bf_ptr assemble(ins_t *code, int *size_out);
+
+int debug;
