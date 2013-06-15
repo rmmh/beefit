@@ -105,33 +105,42 @@ void print_code(ins_t *code, int count) {
         printf("%*s%s %d\n", indent, "", "shift", code->b);
         break;
       case OP_ADD:
-        printf("%*s*%d += %d\n", indent, "", code->b, (int8_t)code->a);
+        printf("%*s*%d += %d\n", indent, "", code->b, code->a);
         break;
       case OP_ADDT:
         printf("%*s*%d ", indent, "", code->b);
         if (code->a == 1) {
           printf("+= tmp\n");
-        } else if (code->a == (uint8_t)-1) {
+        } else if (code->a == -1) {
           printf("-= tmp\n");
         } else {
-          printf("+= tmp*%d\n", (int8_t)code->a);
+          printf("+= tmp*%d\n", code->a);
         }
         break;
       case OP_SET:
-        printf("%*s*%d = %d\n", indent, "", code->b, (int8_t)code->a);
+        printf("%*s*%d = %d\n", indent, "", code->b, code->a);
         break;
       case OP_SETT:
         printf("%*s*%d = tmp\n", indent, "", code->b);
         break;
-      case OP_TADD:
-        if (code->a == -1)
-          printf("%*stmp = *%d - tmp\n", indent, "", code->b);
-        else
-          printf("%*stmp += *%d\n", indent, "", code->b);
+      case OP_TADD: {
+         int off = (int8_t)((code->a & 0x7f) | ((code->a & 0x40) << 1));
+          if (code->a & 0x80) {
+            if (off)
+              printf("%*stmp = *%d - tmp %+d\n", indent, "", code->b, off);
+            else
+              printf("%*stmp = *%d - tmp\n", indent, "", code->b);
+          } else {
+            if (off)
+              printf("%*stmp += *%d %+d\n", indent, "", code->b, off);
+            else
+              printf("%*stmp += *%d\n", indent, "", code->b);
+          }
+        }
         break;
       case OP_LOAD:
         if (code->a) {
-          printf("%*stmp = *%d + %d\n", indent, "", code->b, (int8_t)code->a);
+          printf("%*stmp = *%d + %d\n", indent, "", code->b, code->a);
         } else {
           printf("%*stmp = *%d\n", indent, "", code->b);
         }

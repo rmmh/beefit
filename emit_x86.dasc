@@ -27,11 +27,11 @@ void emit(dasm_State **Dst, ins_t *code) {
       case OP_ADD:
         if (code->a == 1)
           |  inc byte [PTR+code->b]
-        else if (code->a == (uint8_t)-1)
+        else if (code->a == -1)
           |  dec byte [PTR+code->b]
-        else if (code->a <= INT8_MAX)
-          |  add byte [PTR+code->b], code->a
         else if (code->a > 0)
+          |  add byte [PTR+code->b], code->a
+        else if (code->a < 0)
           |  sub byte [PTR+code->b], -code->a
         break;
       case OP_SHIFT:
@@ -56,11 +56,11 @@ void emit(dasm_State **Dst, ins_t *code) {
         if (code->a) {
           if (code->a == 1) {
             |  inc TMPE
-          } else if (code->a == (uint8_t)-1) {
+          } else if (code->a == -1) {
             |  dec TMPE
-          } else if (code->a <= INT8_MAX) {
-            |  add TMP, code->a
           } else if (code->a > 0) {
+            |  add TMP, code->a
+          } else if (code->a < 0) {
             |  sub TMP, -code->a
           }
         }
@@ -69,14 +69,26 @@ void emit(dasm_State **Dst, ins_t *code) {
         |  mov byte [PTR+code->b], TMP
         break;
       case OP_TADD:
-        if (code->a == (uint8_t)-1) {
+        if (code->a & 0x80) {
           |  neg  TMP
+        }
+        if (code->a & 0x7f) {
+          int off = (int8_t)((code->a & 0x7f) | ((code->a & 0x40) << 1));
+          if (off == 1) {
+            |  inc TMPE
+          } else if (off == -1) {
+            |  dec TMPE
+          } else if (off > 0) {
+            |  add TMP, off
+          } else if (off < 0) {
+            |  sub TMP, -off
+          }
         }
         |  add  TMP, byte [PTR+code->b]
         break;
       case OP_ADDT:
         {
-          int8_t diff = (int8_t)code->a;
+          int8_t diff = code->a;
           if (diff < 0) {
             for (int i = 0; i > diff; i--) {
               | sub  [PTR+code->b], TMP

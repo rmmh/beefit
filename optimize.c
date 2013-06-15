@@ -123,7 +123,7 @@ int unloop(ins_t *code) {
         // check that ptr[0] is decremented once
         loop_good = 0;
         for (ins_t *ins = loop_start; ins < code; ++ins) {
-          if (ins->op == OP_ADD && ins->a == (uint8_t)-1 && ins->b == 0) {
+          if (ins->op == OP_ADD && ins->a == -1 && ins->b == 0) {
             loop_good = 1;
             *ins = (ins_t){OP_SET, 0, 0};
           }
@@ -192,7 +192,7 @@ int peep(ins_t *code) {
     if (code->op == OP_LOAD) {
       ins_t *prev = find_ref(code, -1);
       ins_t *next = find_ref(code, 1);
-      if (prev && prev->op == OP_ADDT && (prev->a == 1 || prev->a == (uint8_t)-1)
+      if (prev && prev->op == OP_ADDT && (prev->a == 1 || prev->a == -1)
           && next && next->op == OP_SET) {
         // *A += tmp  /  *A -= tmp
         // tmp = *A
@@ -202,7 +202,7 @@ int peep(ins_t *code) {
         // *A = B
         prev->op = OP_NOP;
         code->op = OP_TADD;
-        code->a = prev->a;
+        code->a = prev->a == 1 ? 0 : 0x80;
         changed = 1;
       } else if (prev && prev->op == OP_ADD &&
                  next && (next->op == OP_SET || next->op == OP_SETT)) {
@@ -235,6 +235,24 @@ int peep(ins_t *code) {
         changed = 1;
         code->op = OP_NOP;
         next->op = OP_SETT;
+      }
+    } else if (code->op == OP_TADD) {
+      ins_t *prev = find_ref(code, -1);
+      ins_t *next = find_ref(code, 1);
+      if ((code->a & 0x7f) == 0
+          && prev && prev->op == OP_ADD
+          && next && next->op == OP_SET
+          && prev->a <= 63 && prev->a >= -64)  {
+        // *A += X
+        // tmp = *A + tmp * (a>>8)
+        // *A = Y
+        // ->
+        // tmp = *A + tmp + (a>>8) + X
+        // *A = Y
+        changed = 1;
+        prev->op = OP_NOP;
+        // 1bit: negate tmp, 7bit: offset
+        code->a = (code->a & 0x80) | (prev->a & 0x7f);
       }
     }
     ++code;

@@ -16,7 +16,7 @@ typedef enum {
   OP_SET,     // ptr[b] = a
   OP_SETT,    // ptr[b] = tmp
   OP_LOAD,    // tmp = ptr[b] + a
-  OP_TADD,    // tmp = tmp*a + ptr[b]
+  OP_TADD,    // tmp = tmp*(a>>8) + ptr[b] + (a&0x7f)
   OP_ADDT,    // ptr[b] += tmp
   OP_SKIPZ,   // while (ptr[0]) {
   OP_LOOPNZ,  // }
@@ -27,7 +27,7 @@ typedef enum {
 
 typedef struct {
   ins_op_t op;
-  uint8_t a;
+  int8_t a;
   int16_t b;
 } ins_t;
 
