@@ -9,6 +9,8 @@ int condense(ins_t *code);
 int unloop(ins_t *code);
 int dce(ins_t *code);
 int peep(ins_t *code);
+int shiftshift(ins_t *code);
+
 
 int optimize(ins_t *code) {
   int changed;
@@ -22,6 +24,8 @@ int optimize(ins_t *code) {
     changed |= dce(code);
     changed |= peep(code);
   } while (changed);
+
+  shiftshift(code);
 
   int opt_size;
   for (opt_size = 0; code[opt_size].op != OP_EOF; ++opt_size) {}
@@ -258,4 +262,21 @@ int peep(ins_t *code) {
     ++code;
   }
   return changed;
+}
+
+int shiftshift(ins_t *code) {
+  while (code->op != OP_EOF) {
+    if (code->op == OP_SHIFT) {
+      int off = code->b;
+      ins_t* prev = find_ref(code, -1);
+      if (prev) {
+        for (ins_t *dst = code; dst != prev; --dst) {
+          *dst = *(dst - 1);
+          dst->b -= off;
+        }
+        *prev = (ins_t){OP_SHIFT, 0, off};
+      }
+    }
+    ++code;
+  }
 }
