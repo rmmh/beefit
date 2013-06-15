@@ -146,7 +146,7 @@ void print_code(ins_t *code, int count) {
         }
         break;
       case OP_SKIPZ:
-        printf("%*s[\n", indent, "");
+        printf("%*s%c\n", indent, "", code->a ? '{' : '[');
         indent += 2;
         break;
       case OP_LOOPNZ:

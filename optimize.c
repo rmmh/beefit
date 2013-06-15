@@ -9,7 +9,7 @@ int condense(ins_t *code);
 int unloop(ins_t *code);
 int dce(ins_t *code);
 int peep(ins_t *code);
-int shiftshift(ins_t *code);
+int peepfinal(ins_t *code);
 
 
 int optimize(ins_t *code) {
@@ -25,7 +25,7 @@ int optimize(ins_t *code) {
     changed |= peep(code);
   } while (changed);
 
-  shiftshift(code);
+  peepfinal(code);
 
   int opt_size;
   for (opt_size = 0; code[opt_size].op != OP_EOF; ++opt_size) {}
@@ -179,12 +179,12 @@ int dce(ins_t *code) {
 ins_t* find_ref(ins_t *code, int dir) {
   int off = code->b;
   for (code += dir; code->op != OP_EOF; code += dir) {
-    if (code->op == OP_SKIPZ || code->op == OP_LOOPNZ || code->op == OP_SHIFT) {
-      return 0;
-    } else if (code->op == OP_NOP) {
+    if (code->op == OP_NOP) {
       ;
     } else if (code->b == off) {
       return code;
+    } else if (code->op == OP_SKIPZ || code->op == OP_LOOPNZ || code->op == OP_SHIFT) {
+      return 0;
     }
   }
   return 0;
@@ -264,9 +264,14 @@ int peep(ins_t *code) {
   return changed;
 }
 
-int shiftshift(ins_t *code) {
+int peepfinal(ins_t *code) {
   while (code->op != OP_EOF) {
     if (code->op == OP_SHIFT) {
+      //  *A += X
+      //  shift A
+      //->
+      //  shift A
+      //  *0 += X
       int off = code->b;
       ins_t* prev = find_ref(code, -1);
       if (prev) {
@@ -275,6 +280,40 @@ int shiftshift(ins_t *code) {
           dst->b -= off;
         }
         *prev = (ins_t){OP_SHIFT, 0, off};
+      }
+    } if (code->op == OP_SKIPZ) {
+      ins_t *prev = find_ref(code, -1);
+      if (prev) {
+        if (prev->op == OP_ADD && prev->a) {
+          ins_t *prev2 = find_ref(prev, -1);
+          if (prev2 && prev2->op == OP_LOOPNZ) {
+            // ]
+            // *0 += X
+            // [
+            // ->
+            // ]
+            // *0 += X
+            // {        (where { is just a label)
+            code->a = 1;
+          }
+        } else if (prev->op == OP_SET && prev->a) {
+          // *0 = X
+          // [
+          // ->
+          // *0 = X
+          // {
+          code->a = 1;
+        }
+      }
+    } else if (code->op == OP_LOOPNZ) {
+      ins_t *prev = find_ref(code, -1);
+      if (prev && prev->op == OP_LOOPNZ) {
+        //   ]
+        // ]
+        // ->
+        //   ]
+        // }
+        code->a = 1;
       }
     }
     ++code;
