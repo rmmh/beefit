@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+
 // from http://stackoverflow.com/a/6766023/3694
 #define STATIC_ASSERT( condition, name )\
     typedef char assert_failed_ ## name [ (condition) ? 1 : -1 ];
