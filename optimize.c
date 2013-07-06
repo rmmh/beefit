@@ -77,6 +77,7 @@ int condense(ins_t *src) {
       case OP_ADDT:
       case OP_SET:
       case OP_SETT:
+      case OP_SETZ:
       case OP_PRINT:
       case OP_READ:
         src->b += shift_offset;
@@ -183,7 +184,8 @@ ins_t* find_ref(ins_t *code, int dir) {
       ;
     } else if (code->b == off) {
       return code;
-    } else if (code->op == OP_SKIPZ || code->op == OP_LOOPNZ || code->op == OP_SHIFT) {
+    } else if (code->op == OP_SKIPZ || code->op == OP_LOOPNZ || code->op == OP_SHIFT ||
+        (code->op == OP_SETZ && (code->b <= off && off < code->b + code->a))) {
       return 0;
     }
   }
@@ -264,6 +266,17 @@ int peep(ins_t *code) {
         // ->
         // ]
         code->op = OP_NOP;
+      } else if (code->a == 0) {
+        // condense long contiguous zeroing into one instruction
+        int runlength = 1;
+        for (ins_t *cont = code + 1; cont->op == OP_SET && cont->a == 0
+              && cont->b == code->b + runlength; ++cont, ++runlength) {
+          cont->op = OP_NOP;
+        }
+        if (runlength > 1) {
+          code->op = OP_SETZ;
+          code->a = runlength;
+        }
       }
     } else if (code->op == OP_TADD) {
       ins_t *prev = find_ref(code, -1);
@@ -314,6 +327,14 @@ int peepfinal(ins_t *code) {
       }
     } if (code->op == OP_SKIPZ) {
       ins_t *prev = find_ref(code, -1);
+      if (prev && prev->op == OP_SKIPZ) {
+        // [
+        //   [
+        // ->
+        // [
+        //   {
+        code->a = 1;
+      }
       if (prev && prev->op == OP_SET && prev->a) {
         // *0 = X
         // [

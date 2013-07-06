@@ -14,6 +14,7 @@ typedef enum {
   OP_SHIFT,   // ptr += b
   OP_ADD,     // ptr[b] += a
   OP_SET,     // ptr[b] = a
+  OP_SETZ,    // ptr[b:b+a] = 0 (multi-byte)
   OP_SETT,    // ptr[b] = tmp
   OP_LOAD,    // tmp = ptr[b] + a
   OP_TADD,    // tmp = tmp*(a>>8) + ptr[b] + (a&0x7f)

@@ -123,6 +123,9 @@ void print_code(ins_t *code, int count) {
       case OP_SETT:
         printf("%*s*%d = tmp\n", indent, "", code->b);
         break;
+      case OP_SETZ:
+        printf("%*s*%d:*%d = 0\n", indent, "", code->b, code->b+code->a);
+        break;
       case OP_TADD: {
          int off = (int8_t)((code->a & 0x7f) | ((code->a & 0x40) << 1));
           if (code->a & 0x80) {

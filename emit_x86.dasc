@@ -7,7 +7,8 @@
 |.define PTR, ebx
 |.define TMP, al
 |.define TMPE, eax
-|.define ZERO, cl
+|.define ZERO, ecx
+|.define ZEROB, cl
 
 #define MAX_NESTING 256
 
@@ -20,7 +21,7 @@ void emit(dasm_State **Dst, ins_t *code) {
   // prologue
   |  push PTR
   |  mov  PTR, [esp+8]
-  |  mov  ZERO, 0
+  |  xor  ZERO, ZERO
 
   for (; code->op != OP_EOF; ++code) {
     switch (code->op) {
@@ -46,7 +47,7 @@ void emit(dasm_State **Dst, ins_t *code) {
         break;
       case OP_SET:
         if (code->a == 0) {
-          |  mov byte [PTR+code->b], ZERO
+          |  mov byte [PTR+code->b], ZEROB
         } else {
           |  mov byte [PTR+code->b], code->a
         }
@@ -68,6 +69,19 @@ void emit(dasm_State **Dst, ins_t *code) {
       case OP_SETT:
         |  mov byte [PTR+code->b], TMP
         break;
+      case OP_SETZ: {
+          int off = code->b;
+          int count = code->a;
+          while (count >= 4) {
+            |  mov [PTR+off], ZERO
+            count -= 4;
+            off += 4;
+          }
+          while (count--) {
+            |  mov byte [PTR+off], ZEROB
+            off++;
+          }
+        }
       case OP_TADD:
         if (code->a & 0x80) {
           |  neg  TMP
@@ -104,12 +118,12 @@ void emit(dasm_State **Dst, ins_t *code) {
         |  movzx  eax, byte [PTR+code->b]
         |  push   eax
         |  call   &putchar
-        |  mov    ZERO, 0
+        |  xor    ZERO, ZERO
         |  pop    eax
         break;
       case OP_READ:
         |  call   &getchar
-        |  mov    ZERO, 0
+        |  xor    ZERO, ZERO
         |  mov    byte [PTR+code->b], al
         break;
       case OP_SKIPZ:
@@ -121,7 +135,7 @@ void emit(dasm_State **Dst, ins_t *code) {
         *top++ = maxpc;
         dasm_growpc(Dst, maxpc);
         if (!code->a) {
-          |  cmp  byte [PTR], ZERO
+          |  cmp  byte [PTR], ZEROB
           |  je   =>(maxpc-2)
         }
         |=>(maxpc-1):
@@ -129,7 +143,7 @@ void emit(dasm_State **Dst, ins_t *code) {
       case OP_LOOPNZ:
         top--;
         if (!code->a) {
-          |  cmp  byte [PTR], ZERO
+          |  cmp  byte [PTR], ZEROB
           |  jne  =>(*top-1)
         }
         |=>(*top-2):
