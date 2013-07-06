@@ -193,7 +193,25 @@ ins_t* find_ref(ins_t *code, int dir) {
 int peep(ins_t *code) {
   int changed = 0;
   while (code->op != OP_EOF) {
-    if (code->op == OP_LOAD) {
+    if (code->op == OP_ADD) {
+      ins_t *prev = find_ref(code, -1);
+      if (prev && prev->op == OP_LOOPNZ) {
+        // ]
+        // *0 += A
+        // ->
+        // ]
+        // *0 = A
+        code->op = OP_SET;
+      }
+    } else if (code->op == OP_SETT) {
+      if (code[-1].op == OP_LOAD && code[-1].b == code->b && code[-1].a == 0) {
+        // tmp = *A
+        // *A = tmp
+        // ->
+        // tmp = *A
+        code->op = OP_NOP;
+      }
+    } else if (code->op == OP_LOAD) {
       ins_t *prev = find_ref(code, -1);
       ins_t *next = find_ref(code, 1);
       if (prev && prev->op == OP_ADDT && (prev->a == 1 || prev->a == -1)
@@ -222,6 +240,7 @@ int peep(ins_t *code) {
       }
     } else if (code->op == OP_SET) {
       ins_t *next = find_ref(code, 1);
+      ins_t *prev = find_ref(code, -1);
       if (next && next->op == OP_ADD) {
         // *A = B
         // *A += C
@@ -239,11 +258,23 @@ int peep(ins_t *code) {
         changed = 1;
         code->op = OP_NOP;
         next->op = OP_SETT;
+      } else if (code->a == 0 && prev && prev->op == OP_LOOPNZ) {
+        // ]
+        // *0 = 0
+        // ->
+        // ]
+        code->op = OP_NOP;
       }
     } else if (code->op == OP_TADD) {
       ins_t *prev = find_ref(code, -1);
       ins_t *next = find_ref(code, 1);
-      if ((code->a & 0x7f) == 0
+      if (prev && prev->op == OP_LOOPNZ) {
+        // ]
+        // tmp += *0
+        // ->
+        // ]
+        code->op = OP_NOP;
+      } else if ((code->a & 0x7f) == 0
           && prev && prev->op == OP_ADD
           && next && next->op == OP_SET
           && prev->a <= 63 && prev->a >= -64)  {
@@ -283,27 +314,13 @@ int peepfinal(ins_t *code) {
       }
     } if (code->op == OP_SKIPZ) {
       ins_t *prev = find_ref(code, -1);
-      if (prev) {
-        if (prev->op == OP_ADD && prev->a) {
-          ins_t *prev2 = find_ref(prev, -1);
-          if (prev2 && prev2->op == OP_LOOPNZ) {
-            // ]
-            // *0 += X
-            // [
-            // ->
-            // ]
-            // *0 += X
-            // {        (where { is just a label)
-            code->a = 1;
-          }
-        } else if (prev->op == OP_SET && prev->a) {
-          // *0 = X
-          // [
-          // ->
-          // *0 = X
-          // {
-          code->a = 1;
-        }
+      if (prev && prev->op == OP_SET && prev->a) {
+        // *0 = X
+        // [
+        // ->
+        // *0 = X
+        // {
+        code->a = 1;
       }
     } else if (code->op == OP_LOOPNZ) {
       ins_t *prev = find_ref(code, -1);
@@ -314,6 +331,25 @@ int peepfinal(ins_t *code) {
         //   ]
         // }
         code->a = 1;
+      } else if (prev && prev->op == OP_SET && prev->a == 0) {
+        //   *0 = 0
+        // ]
+        // ->
+        //   *0 = 0
+        // }
+        code->a = 1;
+      } else if (code[-1].op == OP_SHIFT && code[-2].op == OP_SKIPZ &&
+                 code[-2].a == 0 && code[-3].op == OP_SHIFT && code[-3].b == code[-1].b) {
+        // shift x
+        // [
+        //    shift x
+        // ]
+        // ->
+        // {
+        //    shift x
+        // ]
+        code[-3].op = OP_NOP;
+        code[-2].a = 1;
       }
     }
     ++code;

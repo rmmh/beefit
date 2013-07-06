@@ -151,7 +151,7 @@ void print_code(ins_t *code, int count) {
         break;
       case OP_LOOPNZ:
         indent -= 2;
-        printf("%*s]\n", indent, "");
+        printf("%*s%c\n", indent, "", code->a ? '}' : ']');
         break;
       case OP_PRINT:
         printf("%*sprint *%d\n", indent, "", code->b);
