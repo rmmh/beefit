@@ -8,7 +8,7 @@
 
 
 void usage(char *name) {
-  printf("usage: %s [-d] [filename]\n", name);
+  printf("usage: %s [-d]/[-t] [filename]\n", name);
   exit(1);
 }
 
@@ -19,11 +19,12 @@ int main(int argc, char *argv[]) {
     usage(argv[0]);
   }
 
-  debug = 0;
-
   if (argc >= 2) {
     if (!strcmp(argv[1], "-d")) {
       debug = 1;
+    } else if (!strcmp(argv[1], "-t")) {
+      debug = 1;
+      trace = 1;
     } else if (!strcmp(argv[1], "-h")) {
       usage(argv[0]);
     }
@@ -40,6 +41,7 @@ int main(int argc, char *argv[]) {
   int limit = 1 << 16;
   int count = 0;
   int loop_depth = 0;
+  int loop_count = 0;
   ins_t *code = malloc(limit * sizeof(ins_t));
   code[0] = (ins_t){OP_EOF, 0, 0};
   code++;
@@ -54,6 +56,7 @@ int main(int argc, char *argv[]) {
       case '<': ins = (ins_t){OP_SHIFT, 0, -1}; break;
       case '[': ins = (ins_t){OP_SKIPZ, 0, 0};
         loop_depth++;
+        loop_count++;
         break;
       case ']': ins = (ins_t){OP_LOOPNZ, 0, 0};
         if (--loop_depth < 0) {
@@ -76,7 +79,9 @@ int main(int argc, char *argv[]) {
 
   int opt_size = optimize(code);
 
-  if (debug) {
+  if (trace) {
+    trace_counts = calloc(loop_count, sizeof(int));
+  } else if (debug) {
     print_code(code, opt_size);
   }
 
@@ -90,6 +95,12 @@ int main(int argc, char *argv[]) {
   // TODO: calculate padding precisely
   uint8_t *buf = calloc(32000, 1);
   fptr(buf + 1000);
+
+  if (trace) {
+    print_code(code, opt_size);
+    free(trace_counts);
+  }
+
   free(buf);
   free(code - 1);
   munmap(fptr, size);
@@ -99,6 +110,7 @@ int main(int argc, char *argv[]) {
 
 void print_code(ins_t *code, int count) {
   int indent = 0;
+  int loop_count = 0;
   while (count--) {
     switch (code->op) {
       case OP_SHIFT:
@@ -151,6 +163,10 @@ void print_code(ins_t *code, int count) {
       case OP_SKIPZ:
         printf("%*s%c\n", indent, "", code->a ? '{' : '[');
         indent += 2;
+        if (trace) {
+          printf("%*sLC: %d #%d\n", indent, "", trace_counts[loop_count], loop_count);
+          loop_count++;
+        }
         break;
       case OP_LOOPNZ:
         indent -= 2;

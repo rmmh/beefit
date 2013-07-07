@@ -17,6 +17,7 @@ void emit(dasm_State **Dst, ins_t *code) {
   int pcstack[MAX_NESTING];
   int *top = pcstack;
   int *limit = pcstack + MAX_NESTING;
+  int loop_count = 0;
 
   // prologue
   |  push PTR
@@ -84,7 +85,7 @@ void emit(dasm_State **Dst, ins_t *code) {
         }
       case OP_TADD:
         if (code->a & 0x80) {
-          |  neg  TMP
+          |  neg  TMPE
         }
         if (code->a & 0x7f) {
           int off = (int8_t)((code->a & 0x7f) | ((code->a & 0x40) << 1));
@@ -139,6 +140,9 @@ void emit(dasm_State **Dst, ins_t *code) {
           |  je   =>(maxpc-2)
         }
         |=>(maxpc-1):
+        if (trace) {
+          |   inc dword [(trace_counts+loop_count++)]
+        }
         break;
       case OP_LOOPNZ:
         top--;
