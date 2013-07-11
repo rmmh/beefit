@@ -195,15 +195,16 @@ ins_t* find_ref(ins_t *code, int dir) {
 int peep(ins_t *code) {
   int changed = 0;
   while (code->op != OP_EOF) {
-    if (code->op == OP_ADD) {
+    if (code->op == OP_ADD || code->op == OP_ADDT) {
       ins_t *prev = find_ref(code, -1);
       if (prev && prev->op == OP_LOOPNZ) {
         // ]
-        // *0 += A
+        // *0 += A / tmp
         // ->
         // ]
-        // *0 = A
-        code->op = OP_SET;
+        // *0 = A / tmp
+        code->op = code->op == OP_ADD ? OP_SET : OP_SETT;
+        changed = 1;
       }
     } else if (code->op == OP_SETT) {
       if (code[-1].op == OP_LOAD && code[-1].b == code->b && code[-1].a == 0) {
@@ -212,21 +213,26 @@ int peep(ins_t *code) {
         // ->
         // tmp = *A
         code->op = OP_NOP;
+        changed = 1;
       }
     } else if (code->op == OP_LOAD) {
       ins_t *prev = find_ref(code, -1);
       ins_t *next = find_ref(code, 1);
-      if (prev && prev->op == OP_ADDT && (prev->a == 1 || prev->a == -1)
+      if (prev && (prev->op == OP_ADDT && (prev->a == 1 || prev->a == -1) || prev->op == OP_SETT)
           && next && next->op == OP_SET) {
-        // *A += tmp  /  *A -= tmp
+        // *A += tmp  /  *A -= tmp / *A = tmp
         // tmp = *A
         // *A = B
         // ->
-        // tmp += *A
+        // tmp += *A  / tmp -= *A  / nop
         // *A = B
         prev->op = OP_NOP;
-        code->op = OP_TADD;
-        code->a = prev->a == 1 ? 0 : 0x80;
+        if (prev->op == OP_SETT) {
+          code->op = OP_NOP;
+        } else {
+          code->op = OP_TADD;
+          code->a = prev->a == 1 ? 0 : 0x80;
+        }
         changed = 1;
       } else if (prev && prev->op == OP_ADD &&
                  next && (next->op == OP_SET || next->op == OP_SETT)) {
@@ -266,6 +272,7 @@ int peep(ins_t *code) {
         // ->
         // ]
         code->op = OP_NOP;
+        changed = 1;
       } else if (code->a == 0) {
         // condense long contiguous zeroing into one instruction
         int runlength = 1;
@@ -276,17 +283,19 @@ int peep(ins_t *code) {
         if (runlength > 1) {
           code->op = OP_SETZ;
           code->a = runlength;
+          changed = 1;
         }
       }
     } else if (code->op == OP_TADD) {
       ins_t *prev = find_ref(code, -1);
       ins_t *next = find_ref(code, 1);
-      if (prev && prev->op == OP_LOOPNZ) {
+      if (code->b == 0 && prev && prev->op == OP_LOOPNZ) {
         // ]
         // tmp += *0
         // ->
         // ]
         code->op = OP_NOP;
+        changed = 1;
       } else if ((code->a & 0x7f) == 0
           && prev && prev->op == OP_ADD
           && next && next->op == OP_SET
