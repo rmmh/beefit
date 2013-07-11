@@ -43,4 +43,4 @@ bf_ptr assemble(ins_t *code, int *size_out);
 
 int debug;
 int trace;
-int *trace_counts;
+uint32_t *trace_counts;

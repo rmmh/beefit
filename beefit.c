@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
   int opt_size = optimize(code);
 
   if (trace) {
-    trace_counts = calloc(loop_count, sizeof(int));
+    trace_counts = calloc(loop_count, sizeof(uint32_t));
   } else if (debug) {
     print_code(code, opt_size);
   }

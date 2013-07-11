@@ -6,11 +6,22 @@
 |
 |.define PTR, rbx
 |.define TMP, al
-|.define TMPE, rax
 |
 |.macro callp, addr
 |  mov  rax, (uintptr_t)addr
 |  call rax
+|.endmacro
+|
+|.macro addp, dest, change
+||if (change == 1) {
+|  inc dest
+||} else if (change == -1) {
+|  dec dest
+||} else if (change > 0) {
+|  add dest, change
+||} else if (change < 0) {
+|  sub dest, -change
+||}
 |.endmacro
 
 #define MAX_NESTING 256
@@ -29,41 +40,17 @@ void emit(dasm_State **Dst, ins_t *code) {
   for (; code->op != OP_EOF; ++code) {
     switch (code->op) {
       case OP_ADD:
-        if (code->a == 1)
-          |  inc byte [PTR+code->b]
-        else if (code->a == -1)
-          |  dec byte [PTR+code->b]
-        else if (code->a > 0)
-          |  add byte [PTR+code->b], code->a
-        else if (code->a < 0)
-          |  sub byte [PTR+code->b], -code->a
+        | addp byte [PTR+code->b], code->a
         break;
       case OP_SHIFT:
-        if (code->b == 1)
-          |  inc PTR
-        else if (code->b == -1)
-          |  dec PTR
-        else if (code->b > 0)
-          |  add PTR, code->b
-        else if (code->b < 0)
-          |  sub PTR, -code->b
+        | addp PTR, code->b
         break;
       case OP_SET:
         |  mov byte [PTR+code->b], code->a
         break;
       case OP_LOAD:
         |  mov  TMP, byte [PTR+code->b]
-        if (code->a) {
-          if (code->a == 1) {
-            |  inc TMPE
-          } else if (code->a == -1) {
-            |  dec TMPE
-          } else if (code->a > 0) {
-            |  add TMP, code->a
-          } else if (code->a < 0) {
-            |  sub TMP, -code->a
-          }
-        }
+        |  addp TMP, code->a
         break;
       case OP_SETT:
         |  mov byte [PTR+code->b], TMP
@@ -83,19 +70,11 @@ void emit(dasm_State **Dst, ins_t *code) {
         }
       case OP_TADD:
         if (code->a & 0x80) {
-          |  neg  TMPE
+          |  neg  TMP
         }
         if (code->a & 0x7f) {
           int off = (int8_t)((code->a & 0x7f) | ((code->a & 0x40) << 1));
-          if (off == 1) {
-            |  inc TMPE
-          } else if (off == -1) {
-            |  dec TMPE
-          } else if (off > 0) {
-            |  add TMP, off
-          } else if (off < 0) {
-            |  sub TMP, -off
-          }
+          | addp  TMP, off
         }
         |  add  TMP, byte [PTR+code->b]
         break;
