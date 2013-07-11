@@ -1,14 +1,17 @@
 // based largely on Joshua Haberman's jitdemo
 // https://github.com/haberman/jitdemo/blob/master/jit3.dasc
 
-|.arch x86
+|.arch x64
 |.actionlist actionlist
 |
-|.define PTR, ebx
+|.define PTR, rbx
 |.define TMP, al
-|.define TMPE, eax
-|.define ZERO, ecx
-|.define ZEROB, cl
+|.define TMPE, rax
+|
+|.macro callp, addr
+|  mov  rax, (uintptr_t)addr
+|  call rax
+|.endmacro
 
 #define MAX_NESTING 256
 
@@ -21,8 +24,7 @@ void emit(dasm_State **Dst, ins_t *code) {
 
   // prologue
   |  push PTR
-  |  mov  PTR, [esp+8]
-  |  xor  ZERO, ZERO
+  |  mov  PTR, rdi
 
   for (; code->op != OP_EOF; ++code) {
     switch (code->op) {
@@ -47,11 +49,7 @@ void emit(dasm_State **Dst, ins_t *code) {
           |  sub PTR, -code->b
         break;
       case OP_SET:
-        if (code->a == 0) {
-          |  mov byte [PTR+code->b], ZEROB
-        } else {
-          |  mov byte [PTR+code->b], code->a
-        }
+        |  mov byte [PTR+code->b], code->a
         break;
       case OP_LOAD:
         |  mov  TMP, byte [PTR+code->b]
@@ -73,13 +71,13 @@ void emit(dasm_State **Dst, ins_t *code) {
       case OP_SETZ: {
           int off = code->b;
           int count = code->a;
-          while (count >= 4) {
-            |  mov [PTR+off], ZERO
-            count -= 4;
-            off += 4;
+          while (count >= 8) {
+            |  mov qword [PTR+off], 0
+            count -= 8;
+            off += 8;
           }
           while (count--) {
-            |  mov byte [PTR+off], ZEROB
+            |  mov byte [PTR+off], 0
             off++;
           }
         }
@@ -116,15 +114,11 @@ void emit(dasm_State **Dst, ins_t *code) {
         }
         break;
       case OP_PRINT:
-        |  movzx  eax, byte [PTR+code->b]
-        |  push   eax
-        |  call   &putchar
-        |  xor    ZERO, ZERO
-        |  pop    eax
+        |  movzx  rdi, byte [PTR+code->b]
+        |  callp   &putchar
         break;
       case OP_READ:
-        |  call   &getchar
-        |  xor    ZERO, ZERO
+        |  callp   &getchar
         |  mov    byte [PTR+code->b], al
         break;
       case OP_SKIPZ:
@@ -136,7 +130,7 @@ void emit(dasm_State **Dst, ins_t *code) {
         *top++ = maxpc;
         dasm_growpc(Dst, maxpc);
         if (!code->a) {
-          |  cmp  byte [PTR], ZEROB
+          |  cmp  byte [PTR], 0
           |  je   =>(maxpc-2)
         }
         |=>(maxpc-1):
@@ -147,7 +141,7 @@ void emit(dasm_State **Dst, ins_t *code) {
       case OP_LOOPNZ:
         top--;
         if (!code->a) {
-          |  cmp  byte [PTR], ZEROB
+          |  cmp  byte [PTR], 0
           |  jne  =>(*top-1)
         }
         |=>(*top-2):

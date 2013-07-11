@@ -16,7 +16,7 @@ void err(char *msg) {
 }
 
 // generated from the .dasc file
-#include "emit_x86.gen.h"
+#include "emit_x64.gen.h"
 
 bf_ptr assemble(ins_t *code, int *size_out) {
   dasm_State *state;
