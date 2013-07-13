@@ -24,7 +24,6 @@ int optimize(ins_t *code) {
     changed |= dce(code);
     changed |= peep(code);
   } while (changed);
-
   peepfinal(code);
 
   int opt_size;
@@ -77,7 +76,6 @@ int condense(ins_t *src) {
       case OP_ADDT:
       case OP_SET:
       case OP_SETT:
-      case OP_SETZ:
       case OP_PRINT:
       case OP_READ:
         src->b += shift_offset;
@@ -160,7 +158,6 @@ int dce(ins_t *code) {
 
   for (; code->op != OP_EOF; ++code) {
     if (maybe_useless) {
-
       if (code->op == OP_ADDT || code->op == OP_SETT || code->op == OP_TADD) {
         maybe_useless = 0;
       } else if (code->op == OP_LOAD) {
@@ -180,12 +177,12 @@ int dce(ins_t *code) {
 ins_t* find_ref(ins_t *code, int dir) {
   int off = code->b;
   for (code += dir; code->op != OP_EOF; code += dir) {
-    if (code->op == OP_NOP) {
+    ins_op_t op = code->op;
+    if (op == OP_NOP) {
       ;
     } else if (code->b == off) {
       return code;
-    } else if (code->op == OP_SKIPZ || code->op == OP_LOOPNZ || code->op == OP_SHIFT ||
-        (code->op == OP_SETZ && (code->b <= off && off < code->b + code->a))) {
+    } else if (op == OP_SKIPZ || op == OP_LOOPNZ || op == OP_SHIFT || op == OP_PRINT) {
       return 0;
     }
   }
@@ -206,19 +203,10 @@ int peep(ins_t *code) {
         code->op = code->op == OP_ADD ? OP_SET : OP_SETT;
         changed = 1;
       }
-    } else if (code->op == OP_SETT) {
-      if (code[-1].op == OP_LOAD && code[-1].b == code->b && code[-1].a == 0) {
-        // tmp = *A
-        // *A = tmp
-        // ->
-        // tmp = *A
-        code->op = OP_NOP;
-        changed = 1;
-      }
     } else if (code->op == OP_LOAD) {
       ins_t *prev = find_ref(code, -1);
       ins_t *next = find_ref(code, 1);
-      if (prev && (prev->op == OP_ADDT && (prev->a == 1 || prev->a == -1) || prev->op == OP_SETT)
+      if (prev && ((prev->op == OP_ADDT && (prev->a == 1 || prev->a == -1)) || prev->op == OP_SETT)
           && next && next->op == OP_SET) {
         // *A += tmp  /  *A -= tmp / *A = tmp
         // tmp = *A
@@ -226,13 +214,13 @@ int peep(ins_t *code) {
         // ->
         // tmp += *A  / tmp -= *A  / nop
         // *A = B
-        prev->op = OP_NOP;
         if (prev->op == OP_SETT) {
           code->op = OP_NOP;
         } else {
           code->op = OP_TADD;
           code->a = prev->a == 1 ? 0 : 0x80;
         }
+        prev->op = OP_NOP;
         changed = 1;
       } else if (prev && prev->op == OP_ADD &&
                  next && (next->op == OP_SET || next->op == OP_SETT)) {
@@ -257,15 +245,22 @@ int peep(ins_t *code) {
         changed = 1;
         code->a += next->a;
         next->op = OP_NOP;
-      } else if (next && next->op == OP_ADDT &&
-                 code->a == 0 && next->a == 1) {
+      } else if (code->a == 0 && next && (next->op == OP_ADDT || next->op == OP_SETT)
+                 && next->a == 1) {
         // *A = 0
-        // *A += tmp
+        // *A += tmp / *A = tmp
         // ->
         // *A = tmp
         changed = 1;
         code->op = OP_NOP;
         next->op = OP_SETT;
+      } else if (prev && (prev->op == OP_SET || prev->op == OP_SETT)) {
+        // *A = B / tmp
+        // *A = C
+        // ->
+        // *A = C
+        prev->op = OP_NOP;
+        changed = 1;
       } else if (code->a == 0 && prev && prev->op == OP_LOOPNZ) {
         // ]
         // *0 = 0
@@ -273,18 +268,6 @@ int peep(ins_t *code) {
         // ]
         code->op = OP_NOP;
         changed = 1;
-      } else if (code->a == 0) {
-        // condense long contiguous zeroing into one instruction
-        int runlength = 1;
-        for (ins_t *cont = code + 1; cont->op == OP_SET && cont->a == 0
-              && cont->b == code->b + runlength; ++cont, ++runlength) {
-          cont->op = OP_NOP;
-        }
-        if (runlength > 1) {
-          code->op = OP_SETZ;
-          code->a = runlength;
-          changed = 1;
-        }
       }
     } else if (code->op == OP_TADD) {
       ins_t *prev = find_ref(code, -1);

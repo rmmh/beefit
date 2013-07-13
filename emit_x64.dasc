@@ -55,19 +55,6 @@ void emit(dasm_State **Dst, ins_t *code) {
       case OP_SETT:
         |  mov byte [PTR+code->b], TMP
         break;
-      case OP_SETZ: {
-          int off = code->b;
-          int count = code->a;
-          while (count >= 8) {
-            |  mov qword [PTR+off], 0
-            count -= 8;
-            off += 8;
-          }
-          while (count--) {
-            |  mov byte [PTR+off], 0
-            off++;
-          }
-        }
       case OP_TADD:
         if (code->a & 0x80) {
           |  neg  TMP
@@ -109,7 +96,7 @@ void emit(dasm_State **Dst, ins_t *code) {
         *top++ = maxpc;
         dasm_growpc(Dst, maxpc);
         if (!code->a) {
-          |  cmp  byte [PTR], 0
+          |  cmp  byte [PTR+code->b], 0
           |  je   =>(maxpc-2)
         }
         |=>(maxpc-1):
@@ -120,7 +107,7 @@ void emit(dasm_State **Dst, ins_t *code) {
       case OP_LOOPNZ:
         top--;
         if (!code->a) {
-          |  cmp  byte [PTR], 0
+          |  cmp  byte [PTR+code->b], 0
           |  jne  =>(*top-1)
         }
         |=>(*top-2):

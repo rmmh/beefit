@@ -14,13 +14,12 @@ typedef enum {
   OP_SHIFT,   // ptr += b
   OP_ADD,     // ptr[b] += a
   OP_SET,     // ptr[b] = a
-  OP_SETZ,    // ptr[b:b+a] = 0 (multi-byte)
   OP_SETT,    // ptr[b] = tmp
+  OP_ADDT,    // ptr[b] += tmp
   OP_LOAD,    // tmp = ptr[b] + a
   OP_TADD,    // tmp = tmp*(a>>8) + ptr[b] + (a&0x7f)
-  OP_ADDT,    // ptr[b] += tmp
-  OP_SKIPZ,   // if (a || ptr[0]) do {
-  OP_LOOPNZ,  // } while (ptr[0] && !a)
+  OP_SKIPZ,   // if (a || ptr[b]) do {
+  OP_LOOPNZ,  // } while (ptr[b] && !a)
   OP_PRINT,   // putchar(ptr[b])
   OP_READ,    // ptr[b] = getchar()
   OP_EOF      // end of instructions
