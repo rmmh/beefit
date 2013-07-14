@@ -70,11 +70,11 @@ void emit(dasm_State **Dst, ins_t *code) {
           int8_t diff = code->a;
           if (diff < 0) {
             for (int i = 0; i > diff; i--) {
-              | sub  [PTR+code->b], TMP
+              | sub  byte [PTR+code->b], TMP
             }
           } else if (diff > 0) {
             for (int i = 0; i < diff; i++) {
-              | add  [PTR+code->b], TMP
+              | add  byte [PTR+code->b], TMP
             }
           }
         }

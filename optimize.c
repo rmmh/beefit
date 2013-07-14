@@ -9,8 +9,7 @@ int condense(ins_t *code);
 int unloop(ins_t *code);
 int dce(ins_t *code);
 int peep(ins_t *code);
-int peepfinal(ins_t *code);
-
+void peepfinal(ins_t *code);
 
 int optimize(ins_t *code) {
   int changed;
@@ -151,29 +150,6 @@ int unloop(ins_t *code) {
   return 0;
 }
 
-int dce(ins_t *code) {
-  // remove unnecessary `tmp = ptr[b]` code
-  int changed = 0;
-  ins_t *maybe_useless = 0;
-
-  for (; code->op != OP_EOF; ++code) {
-    if (maybe_useless) {
-      if (code->op == OP_ADDT || code->op == OP_SETT || code->op == OP_TADD) {
-        maybe_useless = 0;
-      } else if (code->op == OP_LOAD) {
-        maybe_useless->op = OP_NOP;
-        maybe_useless = 0;
-        changed = 1;
-      }
-    }
-    if (code->op == OP_LOAD) {
-      maybe_useless = code;
-    }
-  }
-
-  return changed;
-}
-
 ins_t* find_ref(ins_t *code, int dir) {
   int off = code->b;
   for (code += dir; code->op != OP_EOF; code += dir) {
@@ -189,21 +165,91 @@ ins_t* find_ref(ins_t *code, int dir) {
   return 0;
 }
 
+enum {
+  READ_MEM =  1 << 0,
+  WRITE_MEM = 1 << 1,
+  READ_TMP = 1 << 2,
+  WRITE_TMP = 1 << 3,
+  ASSERT_MEM_ZERO = 1 << 4,
+};
+
+int op_effect[] = {
+  [OP_NOP] =   0,
+  [OP_SHIFT] = 0,
+  [OP_ADD] =    READ_MEM | WRITE_MEM,
+  [OP_SET] =               WRITE_MEM,
+  [OP_SETT] =              WRITE_MEM | READ_TMP,
+  [OP_ADDT] =   READ_MEM | WRITE_MEM | READ_TMP,
+  [OP_LOAD] =   READ_MEM                        | WRITE_TMP,
+  [OP_TADD] =   READ_MEM             | READ_TMP | WRITE_TMP,
+  [OP_SKIPZ] = 0,
+  [OP_LOOPNZ] = READ_MEM | ASSERT_MEM_ZERO,
+  [OP_PRINT] = 0,
+  [OP_READ] =  0,
+  [OP_EOF] =   0,
+};
+
+ins_t* find_tref(ins_t *code, int dir, int type) {
+  for (code += dir; code->op != OP_EOF; code += dir) {
+    ins_op_t op = code->op;
+    if (op_effect[op] & type) {
+      return code;
+    } else if (op == OP_SKIPZ || op == OP_LOOPNZ) {
+      return 0;
+    }
+  }
+  return 0;
+}
+
+#define CHANGE(ins, to_op) { (ins)->op = to_op; changed = 1; }
+#define CHANGEIF(ins, is_op, to_op) \
+  if ((ins)->op == (is_op)) CHANGE((ins), (to_op))
+
+int dce(ins_t *code) {
+  int changed = 0;
+
+  for (; code->op != OP_EOF; ++code) {
+    ins_t *next = find_ref(code, 1);
+    int eff_code = op_effect[code->op];
+    int eff_next = next ? op_effect[next->op] : 0;
+
+    if (code->op == OP_SET && code->a == 0) {
+      eff_code |= ASSERT_MEM_ZERO;
+    }
+
+    if (eff_code & WRITE_MEM) {
+      if (eff_next && !(eff_next & READ_MEM)) {
+        // eliminate useless writes to cells
+        CHANGE(code, OP_NOP);
+        continue;
+      }
+    }
+    if (eff_code & WRITE_TMP) {
+      ins_t *next_tref = find_tref(code, 1, WRITE_TMP | READ_TMP);
+      if (!next_tref || !(op_effect[next_tref->op] & READ_TMP)) {
+        // eliminate useless writes to tmp
+        CHANGE(code, OP_NOP);
+      }
+    } else if (eff_code & ASSERT_MEM_ZERO && next) {
+      //   ] *0 += B / tmp * 1
+      //=> ] *0 = B / tmp * 1
+      CHANGEIF(next, OP_ADD, OP_SET);
+      if (next->a == 1) CHANGEIF(next, OP_ADDT, OP_SETT);
+      //   ] tmp += *0
+      //=> ]
+      CHANGEIF(next, OP_TADD, OP_NOP);
+      //   ] *0 = 0
+      //=> ]
+      if (next->a == 0) CHANGEIF(next, OP_SET, OP_NOP);
+    }
+  }
+  return changed;
+}
+
 int peep(ins_t *code) {
   int changed = 0;
-  while (code->op != OP_EOF) {
-    if (code->op == OP_ADD || code->op == OP_ADDT) {
-      ins_t *prev = find_ref(code, -1);
-      if (prev && prev->op == OP_LOOPNZ) {
-        // ]
-        // *0 += A / tmp
-        // ->
-        // ]
-        // *0 = A / tmp
-        code->op = code->op == OP_ADD ? OP_SET : OP_SETT;
-        changed = 1;
-      }
-    } else if (code->op == OP_LOAD) {
+  for (;code->op != OP_EOF; ++code) {
+    if (code->op == OP_LOAD) {
       ins_t *prev = find_ref(code, -1);
       ins_t *next = find_ref(code, 1);
       if (prev && ((prev->op == OP_ADDT && (prev->a == 1 || prev->a == -1)) || prev->op == OP_SETT)
@@ -214,14 +260,21 @@ int peep(ins_t *code) {
         // ->
         // tmp += *A  / tmp -= *A  / nop
         // *A = B
+
+        // make sure there are no further writes to tmp
+        // between *A += tmp and tmp = *A
+        ins_t *prev_write = find_tref(code, -1, WRITE_TMP);
+        if (prev_write && prev_write > prev) {
+          continue;
+        }
+
         if (prev->op == OP_SETT) {
           code->op = OP_NOP;
         } else {
           code->op = OP_TADD;
           code->a = prev->a == 1 ? 0 : 0x80;
         }
-        prev->op = OP_NOP;
-        changed = 1;
+        CHANGE(prev, OP_NOP);
       } else if (prev && prev->op == OP_ADD &&
                  next && (next->op == OP_SET || next->op == OP_SETT)) {
         // *A += C
@@ -230,56 +283,21 @@ int peep(ins_t *code) {
         // ->
         // tmp = *A + C + D
         // *A = B   /  *A = tmp
-        prev->op = OP_NOP;
         code->a += prev->a;
-        changed = 1;
+        CHANGE(prev, OP_NOP);
       }
     } else if (code->op == OP_SET) {
       ins_t *next = find_ref(code, 1);
-      ins_t *prev = find_ref(code, -1);
       if (next && next->op == OP_ADD) {
-        // *A = B
-        // *A += C
-        // ->
-        // *A = B + C
-        changed = 1;
+        //   *A = B; *A += C
+        //=> *A = B + C
         code->a += next->a;
-        next->op = OP_NOP;
-      } else if (code->a == 0 && next && (next->op == OP_ADDT || next->op == OP_SETT)
-                 && next->a == 1) {
-        // *A = 0
-        // *A += tmp / *A = tmp
-        // ->
-        // *A = tmp
-        changed = 1;
-        code->op = OP_NOP;
-        next->op = OP_SETT;
-      } else if (prev && (prev->op == OP_SET || prev->op == OP_SETT)) {
-        // *A = B / tmp
-        // *A = C
-        // ->
-        // *A = C
-        prev->op = OP_NOP;
-        changed = 1;
-      } else if (code->a == 0 && prev && prev->op == OP_LOOPNZ) {
-        // ]
-        // *0 = 0
-        // ->
-        // ]
-        code->op = OP_NOP;
-        changed = 1;
+        CHANGE(next, OP_NOP);
       }
     } else if (code->op == OP_TADD) {
       ins_t *prev = find_ref(code, -1);
       ins_t *next = find_ref(code, 1);
-      if (code->b == 0 && prev && prev->op == OP_LOOPNZ) {
-        // ]
-        // tmp += *0
-        // ->
-        // ]
-        code->op = OP_NOP;
-        changed = 1;
-      } else if ((code->a & 0x7f) == 0
+      if ((code->a & 0x7f) == 0
           && prev && prev->op == OP_ADD
           && next && next->op == OP_SET
           && prev->a <= 63 && prev->a >= -64)  {
@@ -289,25 +307,21 @@ int peep(ins_t *code) {
         // ->
         // tmp = *A + tmp + (a>>8) + X
         // *A = Y
-        changed = 1;
-        prev->op = OP_NOP;
+
         // 1bit: negate tmp, 7bit: offset
         code->a = (code->a & 0x80) | (prev->a & 0x7f);
+        CHANGE(prev, OP_NOP);
       }
     }
-    ++code;
   }
   return changed;
 }
 
-int peepfinal(ins_t *code) {
+void peepfinal(ins_t *code) {
   while (code->op != OP_EOF) {
     if (code->op == OP_SHIFT) {
-      //  *A += X
-      //  shift A
-      //->
-      //  shift A
-      //  *0 += X
+      //   *A += X; shift A
+      //=> shift A; *0 += X
       int off = code->b;
       ins_t* prev = find_ref(code, -1);
       if (prev) {
@@ -320,47 +334,29 @@ int peepfinal(ins_t *code) {
     } if (code->op == OP_SKIPZ) {
       ins_t *prev = find_ref(code, -1);
       if (prev && prev->op == OP_SKIPZ) {
-        // [
-        //   [
-        // ->
-        // [
-        //   {
+        //   [ [
+        //=> [ {
         code->a = 1;
       }
       if (prev && prev->op == OP_SET && prev->a) {
-        // *0 = X
-        // [
-        // ->
-        // *0 = X
-        // {
+        //   *0 = X (nonzero) [
+        //=> *0 = X {
         code->a = 1;
       }
     } else if (code->op == OP_LOOPNZ) {
       ins_t *prev = find_ref(code, -1);
       if (prev && prev->op == OP_LOOPNZ) {
-        //   ]
-        // ]
-        // ->
-        //   ]
-        // }
+        //   ] ]
+        //=> ] }
         code->a = 1;
       } else if (prev && prev->op == OP_SET && prev->a == 0) {
-        //   *0 = 0
-        // ]
-        // ->
-        //   *0 = 0
-        // }
+        //   *0 = 0 ]
+        //=> *0 = 0 }
         code->a = 1;
       } else if (code[-1].op == OP_SHIFT && code[-2].op == OP_SKIPZ &&
                  code[-2].a == 0 && code[-3].op == OP_SHIFT && code[-3].b == code[-1].b) {
-        // shift x
-        // [
-        //    shift x
-        // ]
-        // ->
-        // {
-        //    shift x
-        // ]
+        //   shift x [ shift x ]
+        //=>         { shift x ]
         code[-3].op = OP_NOP;
         code[-2].a = 1;
       }

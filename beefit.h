@@ -7,15 +7,15 @@
 #include <stdint.h>
 
 typedef enum {
-  // optimization passes to edit with new opcodes:
-  // -- dce: if the new op uses tmp
+  // optimizations to edit with new opcodes:
+  //    op_effects
 
   OP_NOP,
   OP_SHIFT,   // ptr += b
   OP_ADD,     // ptr[b] += a
   OP_SET,     // ptr[b] = a
   OP_SETT,    // ptr[b] = tmp
-  OP_ADDT,    // ptr[b] += tmp
+  OP_ADDT,    // ptr[b] += tmp * (int8_t)a
   OP_LOAD,    // tmp = ptr[b] + a
   OP_TADD,    // tmp = tmp*(a>>8) + ptr[b] + (a&0x7f)
   OP_SKIPZ,   // if (a || ptr[b]) do {
