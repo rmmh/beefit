@@ -158,7 +158,7 @@ ins_t* find_ref(ins_t *code, int dir) {
       ;
     } else if (code->b == off) {
       return code;
-    } else if (op == OP_SKIPZ || op == OP_LOOPNZ || op == OP_SHIFT || op == OP_PRINT) {
+    } else if (op == OP_SKIPZ || op == OP_LOOPNZ || op == OP_SHIFT) {
       return 0;
     }
   }
@@ -171,6 +171,7 @@ enum {
   READ_TMP = 1 << 2,
   WRITE_TMP = 1 << 3,
   ASSERT_MEM_ZERO = 1 << 4,
+  DOES_IO = 1 << 5,
 };
 
 int op_effect[] = {
@@ -182,10 +183,10 @@ int op_effect[] = {
   [OP_ADDT] =   READ_MEM | WRITE_MEM | READ_TMP,
   [OP_LOAD] =   READ_MEM                        | WRITE_TMP,
   [OP_TADD] =   READ_MEM             | READ_TMP | WRITE_TMP,
-  [OP_SKIPZ] = 0,
+  [OP_SKIPZ] =  READ_MEM,
   [OP_LOOPNZ] = READ_MEM | ASSERT_MEM_ZERO,
-  [OP_PRINT] = 0,
-  [OP_READ] =  0,
+  [OP_PRINT] =  READ_MEM                        | WRITE_TMP | DOES_IO,
+  [OP_READ] =              WRITE_MEM            | WRITE_TMP | DOES_IO,
   [OP_EOF] =   0,
 };
 
@@ -217,14 +218,14 @@ int dce(ins_t *code) {
       eff_code |= ASSERT_MEM_ZERO;
     }
 
-    if (eff_code & WRITE_MEM) {
+    if (eff_code & WRITE_MEM && !(eff_code & DOES_IO)) {
       if (eff_next && !(eff_next & READ_MEM)) {
         // eliminate useless writes to cells
         CHANGE(code, OP_NOP);
         continue;
       }
     }
-    if (eff_code & WRITE_TMP) {
+    if (eff_code & WRITE_TMP && !(eff_code & DOES_IO)) {
       ins_t *next_tref = find_tref(code, 1, WRITE_TMP | READ_TMP);
       if (!next_tref || !(op_effect[next_tref->op] & READ_TMP)) {
         // eliminate useless writes to tmp
@@ -253,7 +254,7 @@ int peep(ins_t *code) {
       ins_t *prev = find_ref(code, -1);
       ins_t *next = find_ref(code, 1);
       if (prev && ((prev->op == OP_ADDT && (prev->a == 1 || prev->a == -1)) || prev->op == OP_SETT)
-          && next && next->op == OP_SET) {
+          && code->a == 0 && next && next->op == OP_SET) {
         // *A += tmp  /  *A -= tmp / *A = tmp
         // tmp = *A
         // *A = B
