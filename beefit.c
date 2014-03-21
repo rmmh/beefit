@@ -3,12 +3,13 @@
 #include <assert.h>
 #include <sys/mman.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "beefit.h"
 
 
 void usage(char *name) {
-  printf("usage: %s [-d]/[-t] [filename]\n", name);
+  fprintf(stderr, "usage: %s [-d]/[-t]/[-s] [filename]\n", name);
   exit(1);
 }
 
@@ -19,19 +20,28 @@ int main(int argc, char *argv[]) {
     usage(argv[0]);
   }
 
-  if (argc >= 2) {
-    if (!strcmp(argv[1], "-d")) {
-      debug = 1;
-    } else if (!strcmp(argv[1], "-t")) {
-      debug = 1;
-      trace = 1;
-    } else if (!strcmp(argv[1], "-h")) {
-      usage(argv[0]);
+  int stats = 0;
+
+  int opt;
+  while ((opt = getopt(argc, argv, "dths")) != -1) {
+    switch (opt) {
+      case 'd':
+        debug = 1;
+        break;
+      case 't':
+        debug = 1;
+        trace = 1;
+        break;
+      case 's':
+        stats = 1;
+        break;
+      case 'h':
+        usage(argv[0]);
+        break;
     }
   }
-
-  if (argc - debug == 2) {
-    in = fopen(argv[1 + debug], "r");
+  if (optind < argc) {
+    in = fopen(argv[optind], "r");
     if (!in) {
       perror("unable to open file");
       return 1;
@@ -88,7 +98,7 @@ int main(int argc, char *argv[]) {
   int size;
   bf_ptr fptr = assemble(code, &size);
 
-  if (debug) {
+  if (debug || stats) {
     printf("ins:%d opt:%d x86:%dB\n", count, opt_size, size);
   }
 
