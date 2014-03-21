@@ -4,6 +4,7 @@
 
 // optimization passes
 // return nonzero when they change anything
+int trivial_dce(ins_t *code);
 int fold(ins_t *code);
 int condense(ins_t *code);
 int unloop(ins_t *code);
@@ -19,6 +20,7 @@ int optimize(ins_t *code) {
     changed = 0;
     changed |= fold(code);
     changed |= condense(code);
+    changed |= trivial_dce(code);
     changed |= unloop(code);
     changed |= dce(code);
     changed |= peep(code);
@@ -28,6 +30,29 @@ int optimize(ins_t *code) {
   int opt_size;
   for (opt_size = 0; code[opt_size].op != OP_EOF; ++opt_size) {}
   return opt_size;
+}
+
+int trivial_dce(ins_t *code) {
+  // remove trivially dead code (comments)
+  int changed = 0;
+  for (; code->op != OP_EOF; ++code) {
+    if (code->op == OP_SKIPZ) {
+      // [ preceded by the beginning of the file or a ]
+      if (code[-1].op == OP_EOF || code[-1].op == OP_LOOPNZ) {
+        changed = 1;
+        int depth = 0;
+        do {
+          if (code->op == OP_SKIPZ)
+            depth++;
+          else if (code->op == OP_LOOPNZ)
+            depth--;
+          code->op = OP_NOP;
+          ++code;
+        } while (depth);
+      }
+    }
+  }
+  return changed;
 }
 
 int fold(ins_t *code) {
