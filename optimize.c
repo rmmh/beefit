@@ -47,8 +47,9 @@ int trivial_dce(ins_t *code) {
           else if (code->op == OP_LOOPNZ)
             depth--;
           code->op = OP_NOP;
-          ++code;
+          code++;
         } while (depth);
+        code--;  // we walked past the end of the loop
       }
     }
   }

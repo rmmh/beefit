@@ -17,11 +17,13 @@ expected_output_hashes = {
     'test/fizzbuzz.bf': 'b0a6d742a6e9aa22b410e28e071609c44d3a985e',
     'test/quine.bf': '526e4d3d73ab7df064e8ffd9bc502b261f28075a',
     'test/hello.bf': '2ef7bde608ce5404e97d5f042f95f89f1c232871',
-    'test/dce.bf': 'e4f281df5a5d0ff3cad6371f76d5c29b6d953ec',
+    'test/dce.bf': 'ae4f281df5a5d0ff3cad6371f76d5c29b6d953ec',
+    'test/issue03.bf': 'da39a3ee5e6b4b0d3255bfef95601890afd80709',
     'bench/long.bf': '7ef8aa6a336b4a7122031d713f383ffbbe5fac93',
     ('bench/factor.bf', '%s\n' % (31337**2)): '18d066471aa0f6deff502bb9e7042a524f32503b',
     ('test/bfcl.bf', open('test/fizzbuzz.bf').read()): 'c3ea975b719157ac70336d68d0e86ded69f500c6',
-    ('test/awib.bf', open('test/awib.bf').read()): '3b4f9a78ec3ee32e05969e108916a4affa0c2bba'
+    ('test/awib.bf', open('test/awib.bf').read()): '3b4f9a78ec3ee32e05969e108916a4affa0c2bba',
+    ('bench/dbfi.bf', open('bench/factor.bf').read() + '!10\n'): '5b806d37efa89f95782f526d9943ef7452d64934',
 }
 
 for filename, expected_hash in expected_output_hashes.iteritems():
