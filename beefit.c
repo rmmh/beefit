@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
   }
 
   // TODO: calculate padding precisely
-  uint8_t *buf = calloc(32000, 1);
+  uint8_t *buf = calloc(1 << 16, 1);
   fptr(buf + 1000);
 
   if (trace) {

@@ -30,7 +30,7 @@ bf_ptr assemble(ins_t *code, int *size_out) {
   assert(dasm_status == DASM_S_OK);
 
   char *mem = mmap(NULL, size, PROT_READ | PROT_WRITE,
-                  MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+                   MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
   assert(mem != MAP_FAILED);
 
   dasm_encode(&state, mem);
